@@ -4,29 +4,17 @@
   <groupId>org.openmrs.module.fingerprint</groupId>
   <artifactId>FingerPrintApplet</artifactId>
   <packaging>jar</packaging>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.2-SNAPSHOT</version>
   <name>FingerPrintApplet</name>
+  <description>
+  	This has a fingerprint search for a patient.
+  </description>
   <url>http://maven.apache.org</url>
   
-  <properties>
-		<hibernate.version>4.3.6.Final</hibernate.version>
-		<mysql.version>5.1.31</mysql.version>
-	</properties>
+
   
   <dependencies>
-    <!-- Hibernate -->
-		<dependency>
-			<groupId>org.hibernate</groupId>
-			<artifactId>hibernate-core</artifactId>
-			<version>${hibernate.version}</version>
-		</dependency>
-
-		<!-- MySQL -->
-		<dependency>
-			<groupId>mysql</groupId>
-			<artifactId>mysql-connector-java</artifactId>
-			<version>${mysql.version}</version>
-		</dependency>
+ 
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -54,6 +42,12 @@
     	<artifactId>DigitalPersonaOtJni</artifactId>
     	<version>4500</version>
     </dependency>
+    <dependency>
+    	<groupId>netscape.javascript</groupId>
+    	<artifactId>jarPlugin</artifactId>
+    	<version>1.0</version>
+    </dependency>
+    
   </dependencies>
   <build>
 	<plugins>
@@ -64,6 +58,8 @@
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
           </descriptorRefs>
+          <finalName>finger-print-applet</finalName>
+          <appendAssemblyId>false</appendAssemblyId>
         </configuration>
         <executions>
           <execution>
@@ -75,7 +71,33 @@
           </execution>
         </executions>
       </plugin>
-		  
+      
+		<plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jarsigner-plugin</artifactId>
+            <version>1.4</version>
+            <executions>
+              <execution>
+                <id>sign</id>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <keystore>C:\Users\maksph\privateKey.store</keystore>
+              <alias>fingerprintKey</alias>
+              <storepass>metskey</storepass>
+              <keypass>metskey</keypass>
+              <archiveDirectory>target</archiveDirectory>
+              <excludes>
+               <exclude>*SNAPSHOt.jar</exclude>
+              </excludes>
+              <includes>
+              	<include>finger-print-applet.jar</include>
+              </includes>
+            </configuration>
+      </plugin>
 
 	</plugins>
   </build>
