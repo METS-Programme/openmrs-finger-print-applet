@@ -1,6 +1,2 @@
-C:\Users\maksph\projects\FingerPrintApplet\src\main\java\org\openmrs\module\fingerprint\App.java
-C:\Users\maksph\projects\FingerPrintApplet\src\main\java\org\openmrs\module\fingerprint\applet\PatientEnrollmentApplet.java
-C:\Users\maksph\projects\FingerPrintApplet\src\main\java\org\openmrs\module\fingerprint\utilities\HibernateUtil.java
-C:\Users\maksph\projects\FingerPrintApplet\src\main\java\org\openmrs\module\fingerprint\model\PatientFingerPrint.java
-C:\Users\maksph\projects\FingerPrintApplet\src\main\java\org\openmrs\module\fingerprint\bal\PatientFingerPrintBAO.java
-C:\Users\maksph\projects\FingerPrintApplet\src\main\java\org\openmrs\module\fingerprint\dal\PatientFingerPrintDAO.java
+C:\Users\maksph\projects\biometrics\openmrs-module-aijar-finger-print-applet\src\main\java\org\openmrs\module\fingerprint\applet\PatientEnrollmentApplet.java
+C:\Users\maksph\projects\biometrics\openmrs-module-aijar-finger-print-applet\src\main\java\org\openmrs\module\fingerprint\applet\PatientSearchApplet.java
