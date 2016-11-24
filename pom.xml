@@ -86,7 +86,7 @@
             </executions>
             <configuration>
               <keystore>C:\Users\maksph\privateKey.store</keystore>
-              <alias>fingerprintKey</alias>
+              <alias>keyAlias</alias>
               <storepass>metskey</storepass>
               <keypass>metskey</keypass>
               <archiveDirectory>target</archiveDirectory>

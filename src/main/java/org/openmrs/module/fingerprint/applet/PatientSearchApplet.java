@@ -28,7 +28,6 @@ import com.digitalpersona.onetouch.DPFPDataPurpose;
 import com.digitalpersona.onetouch.DPFPFeatureSet;
 import com.digitalpersona.onetouch.DPFPGlobal;
 import com.digitalpersona.onetouch.DPFPSample;
-import com.digitalpersona.onetouch.DPFPTemplate;
 import com.digitalpersona.onetouch.capture.DPFPCapture;
 import com.digitalpersona.onetouch.capture.event.DPFPDataAdapter;
 import com.digitalpersona.onetouch.capture.event.DPFPDataEvent;
@@ -38,7 +37,6 @@ import com.digitalpersona.onetouch.capture.event.DPFPReaderStatusAdapter;
 import com.digitalpersona.onetouch.capture.event.DPFPReaderStatusEvent;
 import com.digitalpersona.onetouch.capture.event.DPFPSensorAdapter;
 import com.digitalpersona.onetouch.capture.event.DPFPSensorEvent;
-import com.digitalpersona.onetouch.processing.DPFPEnrollment;
 import com.digitalpersona.onetouch.processing.DPFPFeatureExtraction;
 import com.digitalpersona.onetouch.processing.DPFPImageQualityException;
 
@@ -54,8 +52,7 @@ public class PatientSearchApplet extends JApplet{
 	 */
 	private static final long serialVersionUID = -3814901644250355253L;
 	private DPFPCapture capturer = DPFPGlobal.getCaptureFactory().createCapture();
-	private DPFPEnrollment enroller = DPFPGlobal.getEnrollmentFactory().createEnrollment();
-	private DPFPTemplate template;
+
 	private DPFPSample sampleForFingerprint;
 	
 	private JButton startEnrollment = new JButton("Scan Finger");
@@ -74,13 +71,13 @@ public class PatientSearchApplet extends JApplet{
 		
 		this.generateUI();
 		
-		updateStatus();
+		updateStatus(0);
 		
 		capturer.addDataListener(new DPFPDataAdapter() {
 			@Override public void dataAcquired(final DPFPDataEvent e) {
 				SwingUtilities.invokeLater(new Runnable() {	public void run() {
 					makeReport("The fingerprint sample was captured.");
-					setPrompt("Scan the same fingerprint again.");
+					
 					process(e.getSample());
 				}});
 			}
@@ -142,7 +139,8 @@ public class PatientSearchApplet extends JApplet{
 
 			
 			public void actionPerformed(ActionEvent actionEventInstance) {
-				scanPatientFingerPrint();	
+				
+				startScanning();	
 				startEnrollment.setEnabled(false);
 			}
 			
@@ -152,10 +150,10 @@ public class PatientSearchApplet extends JApplet{
 
 			
 			public void actionPerformed(ActionEvent e) {
-				
+						stopScanning();
 						sendFingerPrintTemplateToGspFingerPrintFragment();
 						setVisible(false);
-		            	stopScanning();
+		            	
 			}
 			
 		});
@@ -228,94 +226,31 @@ public class PatientSearchApplet extends JApplet{
 	{
 		// Draw fingerprint sample image.
 		drawPicture(convertSampleToBitmap(sample));
-		
-		// Process the sample and create a feature set for the enrollment purpose.
-				DPFPFeatureSet features = extractFeatures(sample, DPFPDataPurpose.DATA_PURPOSE_ENROLLMENT);
-
-				// Check quality of the sample and add to enroller if it's good
-				if (features != null) try
-				{
-					makeReport("The fingerprint feature set was created.");
-					enroller.addFeatures(features);		// Add feature set to template.
-				}
-				catch (DPFPImageQualityException ex) { }
-				finally {
-					updateStatus();
-
-					// Check if template has been created.
-					switch(enroller.getTemplateStatus())
-					{
-						case TEMPLATE_STATUS_READY:	// report success and stop capturing
-							stop();
-							//((MainForm)getOwner()).setTemplate(enroller.getTemplate());
-							setTemplate(enroller.getTemplate());
-							setPrompt("NEXT, Click Search Now to find the patient .");
-							this.searchButton.setEnabled(true);
-							break;
-
-						case TEMPLATE_STATUS_FAILED:	// report failure and restart capturing
-							enroller.clear();
-							stop();
-							updateStatus();
-							
-							JOptionPane.showMessageDialog(this, "The fingerprint template is not valid. Repeat fingerprint scanning.", "Fingerprint Scanning", JOptionPane.ERROR_MESSAGE);
-							start();
-							break;
-						default:
-							break;
-					}
-				}
+		setSampleForFingerprint(sample);
+		this.searchButton.setEnabled(true);
 	}
-	
- 
-	
-	protected void scanPatientFingerPrint(){
-		//cancel thread if it running, and start capture again
-		    
-			capturer.startCapture();
-			setPrompt("Using the fingerprint reader, scan your fingerprint.");
-	}
-	protected void stopScanning(){
-		
-		capturer.stopCapture();
-		
-	}
-	
-	protected void restartScanning(){
-		start();
-		capturer.stopCapture();
+
+	public void startScanning()
+	{
 		capturer.startCapture();
+		setPrompt("Using the fingerprint reader, scan your fingerprint.");
 	}
 
-	private void sendFingerPrintTemplateToGspFingerPrintFragment(){
-		
-		if (this.browserWindow != null) {
-            try {
-            	String fingerPrintSample =  Base64.getEncoder().encodeToString(this.getSampleForFingerprint().serialize());
-            	
-                browserWindow.eval("writeToFingerPrintTextbox('" + fingerPrintSample + "')");
-            }
-            catch (JSException jse) {
-                this.displayErrorMessage(jse.getMessage());
-            } // end try-catch
-        }
-        else {
-            this.displayErrorMessage("Unable to get a reference to browser window.");
-        }
+	public void stopScanning()
+	{
+		capturer.stopCapture();
+	}
+	private void updateStatus(int FAR)
+	{
+		// Show "False accept rate" value
+		setStatus(String.format("False Accept Rate (FAR) = %1$s", FAR));
 	}
 	public void setStatus(String string) {
 		status.setText(string);
 	}
-	private void updateStatus()
-	{
-		// Show number of samples needed.
-		setStatus(String.format("Fingerprint samples needed: %1$s, FAR = 0.", enroller.getFeaturesNeeded()));
-		
-	}
 	public void setPrompt(String string) {
 		prompt.setText(string);
 	}
-	
 	public void makeReport(String string) {
 		log.append(string + "\n");
 	}
@@ -329,8 +264,6 @@ public class PatientSearchApplet extends JApplet{
 		return DPFPGlobal.getSampleConversionFactory().createImage(sample);
 	}
 
-	
-	
 	protected DPFPFeatureSet extractFeatures(DPFPSample sample, DPFPDataPurpose purpose)
 	{
 		DPFPFeatureExtraction extractor = DPFPGlobal.getFeatureExtractionFactory().createFeatureExtraction();
@@ -340,29 +273,36 @@ public class PatientSearchApplet extends JApplet{
 			return null;
 		}
 	}
-
-	public DPFPTemplate getTemplate() {
-		return template;
-	}
-
-	public void setTemplate(DPFPTemplate template) {
-		this.template = template;
-	}
-
 	
+	private void sendFingerPrintTemplateToGspFingerPrintFragment(){
+		 
+		if (this.browserWindow != null) {
+            try {
+    			String fingerPrintSample =  Base64.getEncoder().encodeToString(this.getSampleForFingerprint().serialize());
+                browserWindow.eval("writeToHiddenFingerprintSearchTextbox('" + fingerPrintSample + "')");
+                this.searchButton.setEnabled(false);
+            }
+            catch (Exception jse) {
+                this.displayErrorMessage(jse.getMessage());
+            } // end try-catch
+         
+        }
+        else {
+            this.displayErrorMessage("Unable to get a reference to browser window.");
+        }
+	}
 	  public DPFPSample getSampleForFingerprint() {
-		return sampleForFingerprint;
-	}
+			return sampleForFingerprint;
+		}
 
-	public void setSampleForFingerprint(DPFPSample sampleForFingerprint) {
-		this.sampleForFingerprint = sampleForFingerprint;
-	}
+		public void setSampleForFingerprint(DPFPSample sampleForFingerprint) {
+			this.sampleForFingerprint = sampleForFingerprint;
+		}
 
-	private void displayErrorMessage(String msg) {
-	        JOptionPane.showMessageDialog(this,
-	                msg,
-	                "Message Sending Applet",
-	                JOptionPane.ERROR_MESSAGE);
-	    }
-	
+		private void displayErrorMessage(String msg) {
+		        JOptionPane.showMessageDialog(this,
+		                msg,
+		                "Message Sending Applet",
+		                JOptionPane.ERROR_MESSAGE);
+		  }
 }
