@@ -7,6 +7,7 @@ import java.awt.FlowLayout;
 import java.awt.Image;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Base64;
 
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
@@ -21,8 +22,6 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
-import org.openmrs.module.fingerprint.bal.PatientFingerPrintBAO;
-import org.openmrs.module.fingerprint.model.PatientFingerPrint;
 
 import com.digitalpersona.onetouch.DPFPCaptureFeedback;
 import com.digitalpersona.onetouch.DPFPDataPurpose;
@@ -43,6 +42,9 @@ import com.digitalpersona.onetouch.processing.DPFPEnrollment;
 import com.digitalpersona.onetouch.processing.DPFPFeatureExtraction;
 import com.digitalpersona.onetouch.processing.DPFPImageQualityException;
 
+import netscape.javascript.JSException;
+import netscape.javascript.JSObject;
+
 public class PatientEnrollmentApplet extends JApplet{
 
 	/**
@@ -53,10 +55,10 @@ public class PatientEnrollmentApplet extends JApplet{
 	private DPFPCapture capturer = DPFPGlobal.getCaptureFactory().createCapture();
 	private DPFPEnrollment enroller = DPFPGlobal.getEnrollmentFactory().createEnrollment();
 	private DPFPTemplate template;
-	private int patientID;
+	
 	private JButton startEnrollment = new JButton("Scan Finger");
 	
-	private JButton saveEnrollment = new JButton("Save FingerPrint");
+	private JButton finishEnrollment = new JButton("Finish");
 	
 	private JLabel picture = new JLabel();
 	private JTextField prompt = new JTextField();
@@ -64,16 +66,10 @@ public class PatientEnrollmentApplet extends JApplet{
 	private JTextField status = new JTextField("[status line]");
 	
  
+	private JSObject browserWindow;
 	
 	public void init(){
-		patientID = 0;
-		try{
-			patientID = Integer.parseInt(getParameter("patientId"));
-		}catch(NumberFormatException e){
-			
-		}
-		setPatientID(patientID);
-
+		
 		this.generateUI();
 		
 		updateStatus();
@@ -126,6 +122,14 @@ public class PatientEnrollmentApplet extends JApplet{
 				}});
 			}
 		});
+		
+		try {
+            browserWindow = JSObject.getWindow(this);
+        } catch(JSException jse) {
+            this.displayErrorMessage("Unable to get a reference to the browser window.");
+            setVisible(false);
+        	
+        }
 	}
 	
 	public void generateUI(){
@@ -134,7 +138,7 @@ public class PatientEnrollmentApplet extends JApplet{
 		
 		this.startEnrollment.addActionListener(new ActionListener(){
 
-			@Override
+			
 			public void actionPerformed(ActionEvent actionEventInstance) {
 				scanPatientFingerPrint();	
 				startEnrollment.setEnabled(false);
@@ -142,13 +146,14 @@ public class PatientEnrollmentApplet extends JApplet{
 			
 		});
 		
-		this.saveEnrollment.addActionListener(new ActionListener(){
+		this.finishEnrollment.addActionListener(new ActionListener(){
 
-			@Override
+			
 			public void actionPerformed(ActionEvent e) {
 				
-				//setPatientID(1002);
-				savePatientFingerPrintTemplate(getPatientID());
+						sendFingerPrintTemplateToGspFingerPrintFragment();
+						setVisible(false);
+		            	stopScanning();
 			}
 			
 		});
@@ -179,18 +184,18 @@ public class PatientEnrollmentApplet extends JApplet{
 		status.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 		status.setFont(UIManager.getFont("Panel.font"));
 		
-		JButton quit = new JButton("Close");
+		/*JButton quit = new JButton("Close");
 		quit.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) { 
             	setVisible(false);
             	stopScanning();
-            	}});
+            	}});*/
 		
 		JPanel top = new JPanel(new FlowLayout(FlowLayout.TRAILING));
 		top.setBackground(Color.getColor("control"));
 		top.add(startEnrollment);
-		top.add(this.saveEnrollment);
-		this.saveEnrollment.setEnabled(false);
+		top.add(this.finishEnrollment);
+		this.finishEnrollment.setEnabled(false);
 		
 		
 		JPanel right = new JPanel(new BorderLayout());
@@ -204,14 +209,14 @@ public class PatientEnrollmentApplet extends JApplet{
 		center.add(picture, BorderLayout.LINE_START);
 		center.add(status, BorderLayout.PAGE_END);
 			
-		JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING));
+		/*JPanel bottom = new JPanel(new FlowLayout(FlowLayout.TRAILING));
 		bottom.setBackground(Color.getColor("control"));
-		bottom.add(quit);
+		bottom.add(quit);*/
 
 		setLayout(new BorderLayout());
 		add(top,BorderLayout.PAGE_START);
 		add(center, BorderLayout.CENTER);
-		add(bottom, BorderLayout.PAGE_END);
+		//add(bottom, BorderLayout.PAGE_END);
 		
 		this.setSize(650, 300);
 		
@@ -242,16 +247,15 @@ public class PatientEnrollmentApplet extends JApplet{
 							stop();
 							//((MainForm)getOwner()).setTemplate(enroller.getTemplate());
 							setTemplate(enroller.getTemplate());
-							setPrompt("NEXT, save the fingerprint .");
-							this.saveEnrollment.setEnabled(true);
+							setPrompt("NEXT, Click Finish to submit the fingerprint .");
+							this.finishEnrollment.setEnabled(true);
 							break;
 
 						case TEMPLATE_STATUS_FAILED:	// report failure and restart capturing
 							enroller.clear();
 							stop();
 							updateStatus();
-							//((MainForm)getOwner()).setTemplate(null);
-							//setDummyTemplate(null);
+							
 							JOptionPane.showMessageDialog(this, "The fingerprint template is not valid. Repeat fingerprint enrollment.", "Fingerprint Enrollment", JOptionPane.ERROR_MESSAGE);
 							start();
 							break;
@@ -280,29 +284,23 @@ public class PatientEnrollmentApplet extends JApplet{
 		capturer.stopCapture();
 		capturer.startCapture();
 	}
-	public void generatePatientFingerPrintTemplate(){
+
+	private void sendFingerPrintTemplateToGspFingerPrintFragment(){
 		
+		if (this.browserWindow != null) {
+            try {
+            	String fingerPrintTemplate =  Base64.getEncoder().encodeToString(this.getTemplate().serialize());
+            	
+                browserWindow.eval("writeToFingerPrintTextbox('" + fingerPrintTemplate + "')");
+            }
+            catch (JSException jse) {
+                this.displayErrorMessage(jse.getMessage());
+            } // end try-catch
+        }
+        else {
+            this.displayErrorMessage("Unable to get a reference to browser window.");
+        }
 	}
-	
-	public void savePatientFingerPrintTemplate(int patientID){
-		try{
-			PatientFingerPrint patientFingerPrint = new PatientFingerPrint();
-	    	patientFingerPrint.setPatientId(patientID);
-	    	patientFingerPrint.setLeftIndex(getTemplate().serialize());
-	    	
-	    	PatientFingerPrintBAO patientFingerPrintBAO = new PatientFingerPrintBAO();
-	    	int results = patientFingerPrintBAO.saveFingerPrints(patientFingerPrint);
-	    	
-	    	setPrompt("patient fingerprint successfully enrolled!! "+results);
-	    
-		}catch(Exception e){
-			setPrompt("-----Ooops, "+e.getMessage());
-		}finally{
-			this.saveEnrollment.setEnabled(false);
-		}
-      
-	}
-	
 	public void setStatus(String string) {
 		status.setText(string);
 	}
@@ -349,13 +347,11 @@ public class PatientEnrollmentApplet extends JApplet{
 		this.template = template;
 	}
 
-	public int getPatientID() {
-		return patientID;
-	}
-
-	public void setPatientID(int patientID) {
-		this.patientID = patientID;
-	}
-	
+	  private void displayErrorMessage(String msg) {
+	        JOptionPane.showMessageDialog(this,
+	                msg,
+	                "Message Sending Applet",
+	                JOptionPane.ERROR_MESSAGE);
+	    }
 	
 }
